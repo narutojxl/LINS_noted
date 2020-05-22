@@ -133,7 +133,7 @@ class LinsFusion {
   nav_msgs::Odometry gpsOdometry;
 
   // !@Buffers
-  //用<时间戳, sensormeasurement>构建一个std::map
+  //用<时间戳, sensormeasurement>构建一个std::map,std::map对象默认是按照key值从小到大排序。
   MapRingBuffer<Imu> imuBuf_; //保存laser的加速度和角速度
   MapRingBuffer<sensor_msgs::PointCloud2::ConstPtr> pclBuf_; //大小：3，保存"/segmented_cloud"
   MapRingBuffer<sensor_msgs::PointCloud2::ConstPtr> outlierBuf_; //大小：3，保存"/outlier_cloud"

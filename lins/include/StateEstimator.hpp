@@ -241,7 +241,7 @@ class StateEstimator {
   V3D acc_0_;
   V3D gyr_0_;
   /***********************************/
-  void processImu(double dt, const V3D& acc, const V3D& gyr) {//dt: 对滤波器propagate的该帧imu时间戳与滤波器时间戳之差
+  void processImu(double dt, const V3D& acc, const V3D& gyr) {
     switch (status_) {
       case STATUS_INIT:
         break;
@@ -259,13 +259,13 @@ class StateEstimator {
     }
 
     // For no use here. Just propagte IMU measurements for testing
-    V3D un_acc_0_ = quad_ * (acc_0_ - INIT_BA) + filter_->state_.gn_;
-    V3D un_gyr = 0.5 * (gyr_0_ + gyr) - INIT_BW;
-    quad_ *= math_utils::deltaQ(un_gyr * dt).toRotationMatrix();
+    V3D un_acc_0_ = quad_ * (acc_0_ - INIT_BA) + filter_->state_.gn_;//在laser0下unbias无重力加速度,wa. 在imu回调函数中已经把imu数据转换到laser下了。
+    V3D un_gyr = 0.5 * (gyr_0_ + gyr) - INIT_BW; //laser下角速度
+    quad_ *= math_utils::deltaQ(un_gyr * dt).toRotationMatrix();//当前imu时刻在laser0下的旋转
     V3D un_acc_1 = quad_ * (acc - INIT_BA) + filter_->state_.gn_;
     V3D un_acc = 0.5 * (un_acc_0_ + un_acc_1);
-    pos_ += dt * vel_ + 0.5 * dt * dt * un_acc;
-    vel_ += dt * un_acc;
+    pos_ += dt * vel_ + 0.5 * dt * dt * un_acc; //当前imu时刻在laser0下的位移
+    vel_ += dt * un_acc; //当前imu时刻在laser0下的速度
 
     acc_0_ = acc;
     gyr_0_ = gyr;
@@ -355,13 +355,17 @@ class StateEstimator {
 
     // Initialize IMU preintegration variable
     preintegration_ = new integration::IntegrationBase(
-        imu_last_.acc, imu_last_.gyr, INIT_BA, INIT_BW);
+        imu_last_.acc, imu_last_.gyr, INIT_BA, INIT_BW); //INIT_BA, INIT_BW：从yaml配置文件读取
+    //imu_last: 为第一帧imu
+    //用第一帧imu创建预积分对象
+
 
     // Initialize position, velocity, acceleration bias, gyroscope bias by zeros
     filter_->initialization(scan_new_->time_, V3D(0, 0, 0), V3D(0, 0, 0),
                             V3D(0, 0, 0), V3D(0, 0, 0), imu_last_.acc,
                             imu_last_.gyr);
     //scan_new_->time_：收到第一帧imu数据时最新点云的时间戳, 也是滤波器的初始化时刻
+
 
     kdtreeCorner_->setInputCloud(scan_new_->cornerPointsLessSharp_);
     kdtreeSurf_->setInputCloud(scan_new_->surfPointsLessFlat_);
@@ -392,11 +396,13 @@ class StateEstimator {
     Q4D ql;
     V3D v0, v1, ba0, bw0;
     ba0.setZero();
-    ql = preintegration_->delta_q;
-    pl = preintegration_->delta_p +
+    ql = preintegration_->delta_q; //从k帧laser到k+1帧laser的旋转
+    pl = preintegration_->delta_p + //TODOjxl：作者的意思是表示从k帧laser到k+1帧laser的平移，但是为何是这个形式？ 
          0.5 * linState_.gn_ * preintegration_->sum_dt *
              preintegration_->sum_dt -
          0.5 * ba0 * preintegration_->sum_dt * preintegration_->sum_dt;
+    //pl: delta_p  + 0.5*g*(sum_dt)*(sum_dt) ？
+
     estimateTransform(scan_last_, scan_new_, pl, ql);
 
     // Calculate initial state using relative transform calculated by point
@@ -834,12 +840,13 @@ class StateEstimator {
       pcl::PointCloud<PointType>::Ptr keypoints,
       pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount) {
     int surfPointsFlatNum = newScan->surfPointsFlat_->points.size();
+    int surfPointsLessFlatNum = lastScan->surfPointsLessFlat_->points.size(); //we add
 
     for (int i = 0; i < surfPointsFlatNum; i++) {
       PointType pointSel;
       PointType coeff, tripod1, tripod2, tripod3;
 
-      transformToStart(&newScan->surfPointsFlat_->points[i], &pointSel);
+      transformToStart(&newScan->surfPointsFlat_->points[i], &pointSel);//pi
 
       pcl::PointCloud<PointType>::Ptr laserCloudSurfLast =
           lastScan->surfPointsLessFlat_;
@@ -859,10 +866,10 @@ class StateEstimator {
           float pointSqDis, minPointSqDis2 = NEAREST_FEATURE_SEARCH_SQ_DIST,
                             minPointSqDis3 = NEAREST_FEATURE_SEARCH_SQ_DIST;
 
-          for (int j = closestPointInd + 1; j < surfPointsFlatNum; j++) {
+          for (int j = closestPointInd + 1; j < surfPointsLessFlatNum; j++) {//TODO应该为surfPointsLessFlatNum, default: surfPointsFlatNum
             if (int(laserCloudSurfLast->points[j].intensity) >
                 closestPointScan + 2.5) {
-              break;
+              break; //TODO 应该为continue吗？
             }
 
             pointSqDis = (laserCloudSurfLast->points[j].x - pointSel.x) *
@@ -888,7 +895,7 @@ class StateEstimator {
           for (int j = closestPointInd - 1; j >= 0; j--) {
             if (int(laserCloudSurfLast->points[j].intensity) <
                 closestPointScan - 2.5) {
-              break;
+              break; //TODO 应该为continue吗？
             }
 
             pointSqDis = (laserCloudSurfLast->points[j].x - pointSel.x) *
@@ -912,9 +919,9 @@ class StateEstimator {
             }
           }
         }
-        pointSearchSurfInd1[i] = closestPointInd;
-        pointSearchSurfInd2[i] = minPointInd2;
-        pointSearchSurfInd3[i] = minPointInd3;
+        pointSearchSurfInd1[i] = closestPointInd; //pj
+        pointSearchSurfInd2[i] = minPointInd2; //pl
+        pointSearchSurfInd3[i] = minPointInd3; //pm
       }
 
       if (pointSearchSurfInd2[i] >= 0 && pointSearchSurfInd3[i] >= 0) {
@@ -922,17 +929,17 @@ class StateEstimator {
         tripod2 = laserCloudSurfLast->points[pointSearchSurfInd2[i]];
         tripod3 = laserCloudSurfLast->points[pointSearchSurfInd3[i]];
 
-        V3D P0xyz(pointSel.x, pointSel.y, pointSel.z);
-        V3D P1xyz(tripod1.x, tripod1.y, tripod1.z);
-        V3D P2xyz(tripod2.x, tripod2.y, tripod2.z);
-        V3D P3xyz(tripod3.x, tripod3.y, tripod3.z);
+        V3D P0xyz(pointSel.x, pointSel.y, pointSel.z); //pi
+        V3D P1xyz(tripod1.x, tripod1.y, tripod1.z); //pj
+        V3D P2xyz(tripod2.x, tripod2.y, tripod2.z); //pl
+        V3D P3xyz(tripod3.x, tripod3.y, tripod3.z); //pm
 
-        V3D M = math_utils::skew(P1xyz - P2xyz) * (P1xyz - P3xyz);
+        V3D M = math_utils::skew(P1xyz - P2xyz) * (P1xyz - P3xyz); 
         double r = (P0xyz - P1xyz).transpose() * M;
         double m = M.norm();
-        float res = r / m;
+        float res = r / m; //点到平面的距离
 
-        V3D jacxyz = M.transpose() / (m);
+        V3D jacxyz = M.transpose() / (m); //平面jlm的单位法向量
 
         float s = 1;
         if (iterCount >= ICP_FREQ) {
@@ -960,12 +967,13 @@ class StateEstimator {
       pcl::PointCloud<PointType>::Ptr keypoints,
       pcl::PointCloud<PointType>::Ptr jacobianCoff, int iterCount) {
     int cornerPointsSharpNum = newScan->cornerPointsSharp_->points.size();
+    int cornerPointsLessSharpNum = lastScan->cornerPointsLessSharp_->points.size(); //we add
 
     for (int i = 0; i < cornerPointsSharpNum; i++) {
       PointType pointSel;
       PointType coeff, tripod1, tripod2;
 
-      transformToStart(&newScan->cornerPointsSharp_->points[i], &pointSel);
+      transformToStart(&newScan->cornerPointsSharp_->points[i], &pointSel); //pi
 
       pcl::PointCloud<PointType>::Ptr laserCloudCornerLast =
           lastScan->cornerPointsLessSharp_;
@@ -983,10 +991,10 @@ class StateEstimator {
               int(laserCloudCornerLast->points[closestPointInd].intensity);
 
           float pointSqDis, minPointSqDis2 = NEAREST_FEATURE_SEARCH_SQ_DIST;
-          for (int j = closestPointInd + 1; j < cornerPointsSharpNum; j++) {
+          for (int j = closestPointInd + 1; j < cornerPointsLessSharpNum; j++) {//TODO:应该为cornerPointsLessSharpNum,default：cornerPointsSharpNum
             if (int(laserCloudCornerLast->points[j].intensity) >
                 closestPointScan + 2.5) {
-              break;
+              break; //TODO 应该为continue吗？
             }
 
             pointSqDis = (laserCloudCornerLast->points[j].x - pointSel.x) *
@@ -1007,7 +1015,7 @@ class StateEstimator {
           for (int j = closestPointInd - 1; j >= 0; j--) {
             if (int(laserCloudCornerLast->points[j].intensity) <
                 closestPointScan - 2.5) {
-              break;
+              break; //TODO 应该为continue吗？
             }
 
             pointSqDis = (laserCloudCornerLast->points[j].x - pointSel.x) *
@@ -1032,20 +1040,20 @@ class StateEstimator {
       }
 
       if (pointSearchCornerInd2[i] >= 0) {
-        tripod1 = laserCloudCornerLast->points[pointSearchCornerInd1[i]];
-        tripod2 = laserCloudCornerLast->points[pointSearchCornerInd2[i]];
+        tripod1 = laserCloudCornerLast->points[pointSearchCornerInd1[i]];//pj
+        tripod2 = laserCloudCornerLast->points[pointSearchCornerInd2[i]];//pl
 
         V3D P0xyz(pointSel.x, pointSel.y, pointSel.z);
         V3D P1xyz(tripod1.x, tripod1.y, tripod1.z);
         V3D P2xyz(tripod2.x, tripod2.y, tripod2.z);
 
-        V3D P = math_utils::skew(P0xyz - P1xyz) * (P0xyz - P2xyz);
+        V3D P = math_utils::skew(P0xyz - P1xyz) * (P0xyz - P2xyz); 
         float r = P.norm();
         float d12 = (P1xyz - P2xyz).norm();
-        float res = r / d12;
+        float res = r / d12; //i到(j,l)直线的距离
 
         V3D jacxyz =
-            P.transpose() * math_utils::skew(P2xyz - P1xyz) / (d12 * r);
+            P.transpose() * math_utils::skew(P2xyz - P1xyz) / (d12 * r); //距离对pi的雅克比 //TODO 待验证
 
         float s = 1;
         if (iterCount >= ICP_FREQ) {
@@ -1322,91 +1330,91 @@ class StateEstimator {
     return false;
   }
 
-  void estimateInitialState1(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
-                             V3D& ba, V3D& bw) {
-    ba = INIT_BA;
-    bw = INIT_BW;
+  // void estimateInitialState1(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
+  //                            V3D& ba, V3D& bw) {
+  //   ba = INIT_BA;
+  //   bw = INIT_BW;
 
-    solveGyroscopeBias(q, bw);
+  //   solveGyroscopeBias(q, bw);
 
-    double sum_dt = preintegration_->sum_dt;
-    v0 =
-        (p - 0.5 * linState_.gn_ * sum_dt * sum_dt - preintegration_->delta_p) /
-        sum_dt;
-    v1 = v0 + sum_dt * linState_.gn_ + preintegration_->delta_v;
+  //   double sum_dt = preintegration_->sum_dt;
+  //   v0 =
+  //       (p - 0.5 * linState_.gn_ * sum_dt * sum_dt - preintegration_->delta_p) /
+  //       sum_dt;
+  //   v1 = v0 + sum_dt * linState_.gn_ + preintegration_->delta_v;
 
-    cout << "v0: " << v0.transpose() << endl;
-    cout << "v1: " << v1.transpose() << endl;
-    cout << "ba0: " << INIT_BA.transpose() << endl;
-    cout << "bw0: " << INIT_BW.transpose() << endl;
-    cout << "bw0: " << bw.transpose() << endl;
-  }
+  //   cout << "v0: " << v0.transpose() << endl;
+  //   cout << "v1: " << v1.transpose() << endl;
+  //   cout << "ba0: " << INIT_BA.transpose() << endl;
+  //   cout << "bw0: " << INIT_BW.transpose() << endl;
+  //   cout << "bw0: " << bw.transpose() << endl;
+  // }
 
-  void estimateInitialState2(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
-                             V3D& ba, V3D& bw) {
-    const int DIM_OF_STATE = 1 + 1 + 3;
-    const int DIM_OF_MEAS = 3 + 3;
-    Eigen::Matrix<double, Eigen::Dynamic, DIM_OF_STATE> J(DIM_OF_MEAS,
-                                                          DIM_OF_STATE);
-    Eigen::Matrix<double, DIM_OF_STATE, Eigen::Dynamic> JT(DIM_OF_STATE,
-                                                           DIM_OF_MEAS);
-    Eigen::Matrix<double, DIM_OF_STATE, DIM_OF_STATE> JTJ;
-    Eigen::VectorXd b(DIM_OF_MEAS);
-    Eigen::Matrix<double, DIM_OF_STATE, 1> JTb;
-    Eigen::Matrix<double, DIM_OF_STATE, 1> x;
+  // void estimateInitialState2(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
+  //                            V3D& ba, V3D& bw) {
+  //   const int DIM_OF_STATE = 1 + 1 + 3;
+  //   const int DIM_OF_MEAS = 3 + 3;
+  //   Eigen::Matrix<double, Eigen::Dynamic, DIM_OF_STATE> J(DIM_OF_MEAS,
+  //                                                         DIM_OF_STATE);
+  //   Eigen::Matrix<double, DIM_OF_STATE, Eigen::Dynamic> JT(DIM_OF_STATE,
+  //                                                          DIM_OF_MEAS);
+  //   Eigen::Matrix<double, DIM_OF_STATE, DIM_OF_STATE> JTJ;
+  //   Eigen::VectorXd b(DIM_OF_MEAS);
+  //   Eigen::Matrix<double, DIM_OF_STATE, 1> JTb;
+  //   Eigen::Matrix<double, DIM_OF_STATE, 1> x;
 
-    J.setZero();
-    JT.setZero();
-    JTJ.setZero();
-    b.setZero();
-    JTb.setZero();
-    x.setZero();
+  //   J.setZero();
+  //   JT.setZero();
+  //   JTJ.setZero();
+  //   b.setZero();
+  //   JTb.setZero();
+  //   x.setZero();
 
-    double sum_dt = preintegration_->sum_dt;
-    b.block<3, 1>(0, 0) =
-        (p - preintegration_->delta_p) / sum_dt - 0.5 * sum_dt * linState_.gn_;
-    b.block<3, 1>(3, 0) = sum_dt * linState_.gn_ + preintegration_->delta_v;
+  //   double sum_dt = preintegration_->sum_dt;
+  //   b.block<3, 1>(0, 0) =
+  //       (p - preintegration_->delta_p) / sum_dt - 0.5 * sum_dt * linState_.gn_;
+  //   b.block<3, 1>(3, 0) = sum_dt * linState_.gn_ + preintegration_->delta_v;
 
-    V3D L(1, 0, 0);
-    J.block<3, 1>(0, 0) = L;
-    J.block<3, 3>(0, 2) = -0.5 * sum_dt * M3D::Identity();
-    J.block<3, 1>(3, 0) = -L;
-    J.block<3, 1>(3, 1) = L;
-    J.block<3, 3>(3, 2) = sum_dt * M3D::Identity();
+  //   V3D L(1, 0, 0);
+  //   J.block<3, 1>(0, 0) = L;
+  //   J.block<3, 3>(0, 2) = -0.5 * sum_dt * M3D::Identity();
+  //   J.block<3, 1>(3, 0) = -L;
+  //   J.block<3, 1>(3, 1) = L;
+  //   J.block<3, 3>(3, 2) = sum_dt * M3D::Identity();
 
-    JT = J.transpose();
-    JTJ = JT * J;
-    JTb = JT * b;
+  //   JT = J.transpose();
+  //   JTJ = JT * J;
+  //   JTb = JT * b;
 
-    x = JTJ.colPivHouseholderQr().solve(JTb);
-    v0 = x(0) * L;
-    v1 = x(1) * L;
-    ba = INIT_BA;
-    bw = INIT_BW;
+  //   x = JTJ.colPivHouseholderQr().solve(JTb);
+  //   v0 = x(0) * L;
+  //   v1 = x(1) * L;
+  //   ba = INIT_BA;
+  //   bw = INIT_BW;
 
-    V3D test_ba = linState_.gn_ + preintegration_->delta_v / sum_dt;
-    cout << "test_ba: " << test_ba.transpose() << endl;
-  }
+  //   V3D test_ba = linState_.gn_ + preintegration_->delta_v / sum_dt;
+  //   cout << "test_ba: " << test_ba.transpose() << endl;
+  // }
 
-  void estimateInitialState3(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
-                             V3D& ba, V3D& bw) {
-    double sum_dt = preintegration_->sum_dt;
-    V3D v = p / sum_dt;
-    // v * sum_dt = (p - 0.5*linState_.gn_*sum_dt*sum_dt -
-    // preintegration_->delta_p + 0.5*ba*sum_dt*sum_dt);
-    ba = (v * sum_dt - p + 0.5 * linState_.gn_ * sum_dt * sum_dt +
-          preintegration_->delta_p) *
-         2 * (1.0 / sum_dt * sum_dt);
+  // void estimateInitialState3(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
+  //                            V3D& ba, V3D& bw) {
+  //   double sum_dt = preintegration_->sum_dt;
+  //   V3D v = p / sum_dt;
+  //   // v * sum_dt = (p - 0.5*linState_.gn_*sum_dt*sum_dt -
+  //   // preintegration_->delta_p + 0.5*ba*sum_dt*sum_dt);
+  //   ba = (v * sum_dt - p + 0.5 * linState_.gn_ * sum_dt * sum_dt +
+  //         preintegration_->delta_p) *
+  //        2 * (1.0 / sum_dt * sum_dt);
 
-    solveGyroscopeBias(q, bw);
+  //   solveGyroscopeBias(q, bw);
 
-    v0 = v;
-    v1 = v;
-    cout << "v0: " << v0.transpose() << endl;
-    cout << "v1: " << v1.transpose() << endl;
-    cout << "ba0: " << ba.transpose() << endl;
-    cout << "bw0: " << bw.transpose() << endl;
-  }
+  //   v0 = v;
+  //   v1 = v;
+  //   cout << "v0: " << v0.transpose() << endl;
+  //   cout << "v1: " << v1.transpose() << endl;
+  //   cout << "ba0: " << ba.transpose() << endl;
+  //   cout << "bw0: " << bw.transpose() << endl;
+  // }
 
   void estimateInitialState(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
                             V3D& ba, V3D& bw) {
@@ -1420,32 +1428,33 @@ class StateEstimator {
     ba = INIT_BA;
     bw = INIT_BW;
   }
-
+  
+  
   // Estimate gyroscope bias using a similar methoed provided in VINS-Mono
-  void solveGyroscopeBias(const Q4D& q, V3D& bw) {
-    Matrix3d A;
-    V3D b;
-    V3D delta_bg;
-    A.setZero();
-    b.setZero();
+  // void solveGyroscopeBias(const Q4D& q, V3D& bw) {
+  //   Matrix3d A;
+  //   V3D b;
+  //   V3D delta_bg;
+  //   A.setZero();
+  //   b.setZero();
 
-    MatrixXd tmp_A(3, 3);
-    tmp_A.setZero();
-    VectorXd tmp_b(3);
-    tmp_b.setZero();
-    Eigen::Quaterniond q_ij = q;
-    tmp_A = preintegration_->jacobian.template block<3, 3>(GlobalState::att_,
-                                                           GlobalState::gyr_);
-    tmp_b = 2 * (preintegration_->delta_q.inverse() * q_ij).vec();
-    A += tmp_A.transpose() * tmp_A;
-    b += tmp_A.transpose() * tmp_b;
+  //   MatrixXd tmp_A(3, 3);
+  //   tmp_A.setZero();
+  //   VectorXd tmp_b(3);
+  //   tmp_b.setZero();
+  //   Eigen::Quaterniond q_ij = q;
+  //   tmp_A = preintegration_->jacobian.template block<3, 3>(GlobalState::att_,
+  //                                                          GlobalState::gyr_); //(6,12)
+  //   tmp_b = 2 * (preintegration_->delta_q.inverse() * q_ij).vec();
+  //   A += tmp_A.transpose() * tmp_A;
+  //   b += tmp_A.transpose() * tmp_b;
 
-    delta_bg = A.ldlt().solve(b);
-    ROS_WARN_STREAM("gyroscope bias initial calibration "
-                    << delta_bg.transpose());
+  //   delta_bg = A.ldlt().solve(b);
+  //   ROS_WARN_STREAM("gyroscope bias initial calibration "
+  //                   << delta_bg.transpose());
 
-    bw += delta_bg;
-  }
+  //   bw += delta_bg;
+  // }
 
  public:
   FusionStatus status_;     // system status
@@ -1477,8 +1486,10 @@ class StateEstimator {
 
   // !@Global transformation from the original scan-frame to current scan-frame
   GlobalState globalState_;
+
   // !@Relative transformation from scan0-frame t0 scan1-frame
   GlobalState linState_;
+
   Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, 1> difVecLinInv_;
   Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, 1> updateVec_;
   double updateVecNorm_ = 0.0;

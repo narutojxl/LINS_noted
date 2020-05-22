@@ -11,11 +11,11 @@ scan_num: 1800
 scan_period: 0.1
 edge_threshold: 0.5
 surf_threshold: 0.5
-nearest_feature_search_sq_dist: 25
+nearest_feature_search_sq_dist: 25 #把k+1帧点转换到k+1帧start pi，k帧点在上个周期已经转换到k帧的end。在k帧中找离pi最近的点，距离不能超过5m,否则该点会被忽略掉。
 verbose: 0
 icp_freq: 1
 max_lidar_nums: 200000
-num_iter: 30
+num_iter: 30 #
 lidar_scale: 1
 lidar_std: 0.01
 

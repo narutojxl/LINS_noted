@@ -137,7 +137,7 @@ void LinsFusion::imuCallback(const sensor_msgs::Imu::ConstPtr& imuMsg) {
 
   // Add a new IMU measurement
   Imu imu(imuMsg->header.stamp.toSec(), acc_aligned_, gyr_aligned_);
-  imuBuf_.addMeas(imu, imuMsg->header.stamp.toSec());
+  imuBuf_.addMeas(imu, imuMsg->header.stamp.toSec()); //imubuffer中保存的是每个imu时刻laser的加速度和角速度
 
   // Trigger the Kalman filter
   performStateEstimation(); //每来一帧imu执行一次
@@ -239,12 +239,12 @@ bool LinsFusion::processPointClouds() {
   int imu_couter = 0;
   while (estimator->getTime() < scan_time_ &&
          (imuBuf_.itMeas_ = imuBuf_.measMap_.upper_bound(
-              estimator->getTime())) != imuBuf_.measMap_.end()) { //用imu时间戳大于filter_time， 且小于scan_time_的imus，对滤波器进行progatate
+              estimator->getTime())) != imuBuf_.measMap_.end()) { //用时间戳大于filter_time， 且小于scan_time_的imu measurements，预积分
     double dt =
         std::min(imuBuf_.itMeas_->first, scan_time_) - estimator->getTime();
     Imu imu = imuBuf_.itMeas_->second;
-    estimator->processImu(dt, imu.acc, imu.gyr); //每propagate一次，filter_time时间往前移一次
-  }//退出时filter_time>=scan_time_
+    estimator->processImu(dt, imu.acc, imu.gyr); //对每一个imu, 预积分一次， filter_time时间往前移一次
+  }
 
 
   Imu imu;
