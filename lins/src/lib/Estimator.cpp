@@ -205,9 +205,11 @@ void LinsFusion::publishTopics() {
   publishOdometryYZX(scan_time_);
 }
 
+
+
 bool LinsFusion::processPointClouds() {
   // Obtain the next PCL
-  pclBuf_.itMeas_ = pclBuf_.measMap_.upper_bound(estimator->getTime());//第一个时间戳大于滤波器时间戳的点云
+  pclBuf_.itMeas_ = pclBuf_.measMap_.upper_bound(estimator->getTime());//第一个时间戳大于滤波器的点云
   sensor_msgs::PointCloud2::ConstPtr pclMsg = pclBuf_.itMeas_->second;
   scan_time_ = pclBuf_.itMeas_->first;
   distortedPointCloud->clear();
@@ -229,11 +231,11 @@ bool LinsFusion::processPointClouds() {
   }
    
   // 如果执行到这，时间戳顺序如下：
-  // filter_time  laser_1(scan_time_)       
-  //      |          |                     
+  // filter_time  scan_time_       
+  //      |          |          |                          
   // -------------------------------------> t(时间)
-  //       |  |  |  |  | 
-  //                  last_imu_time_ 
+  //       |  |  |  |  |  |  |  |  |   
+  //                              last_imu_time_ 
 
   // Propagate IMU measurements between two consecutive scans
   int imu_couter = 0;
@@ -244,11 +246,22 @@ bool LinsFusion::processPointClouds() {
         std::min(imuBuf_.itMeas_->first, scan_time_) - estimator->getTime();
     Imu imu = imuBuf_.itMeas_->second;
     estimator->processImu(dt, imu.acc, imu.gyr); //对每一个imu, 预积分一次， filter_time时间往前移一次
+    //注意：imu预积分只发生在[laser1, laser2]之间。因为处理完第二帧laser后状态变为STATUS_RUNNING
+    //对于[l2,l3], [l3,l4]....之间的imu measurements：
+    //对于每一个imu measurement,对滤波器状态PVQ进行积分，把状态的PVQ往前推一个imu时间间隔，滤波器的时间戳也往前移dt
+    //本次用来预测状态的第一帧imu，因为上一次update之后调用了reset，所以此时的state是上次reset()之后的状态；用本次第一帧之后的imu再预测时，状态的初值就是上次预测的结果
   }
+  //退出while时， filter_time预积分了一个imu时间戳刚好超过scan_time_, 时间戳变为如下：
+  //   scan_time_  filter_time  
+  //            | |               |    
+  //  ------------------------------------------------> t(时间)
+  //              | | | | | | | | | |
+  //       某一个imu                 imuBuf_中最后一个
 
+  //对相邻两laser帧之间的imu measurements预积分得到k帧laser到k+1帧laser变换的初值，后面在处理该帧laser时会用
 
   Imu imu;
-  imuBuf_.getLastMeas(imu);
+  imuBuf_.getLastMeas(imu); //TODO: 感觉不应该取最后一个imu，应该取时间戳和scan_time最近的imu
 
   // Update the iterative-ESKF using a new PCL
   estimator->processPCL(scan_time_, imu, distortedPointCloud, cloudInfoMsg,
@@ -275,7 +288,7 @@ void LinsFusion::performStateEstimation() {
 
   // Iterate all PCL measurements in the buffer
   pclBuf_.getLastTime(last_scan_time_);
-  while (!pclBuf_.empty() && estimator->getTime() < last_scan_time_) { //estimator需要处理这些时间戳大于自己的lasers
+  while (!pclBuf_.empty() && estimator->getTime() < last_scan_time_) { //estimator需要处理这些时间戳大于自己的lasers，直到自己的时间 == latest scan time
     TicToc ts_total;
     if (!processPointClouds()) break;
     double time_total = ts_total.toc();

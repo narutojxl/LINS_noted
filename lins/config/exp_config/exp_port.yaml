@@ -15,9 +15,9 @@ nearest_feature_search_sq_dist: 25 #把k+1帧点转换到k+1帧start pi，k帧�
 verbose: 0
 icp_freq: 1
 max_lidar_nums: 200000
-num_iter: 30 #
+num_iter: 30 #相邻两laser计算delta_T时高斯牛顿迭代的次数；IESKF update阶段迭代的次数
 lidar_scale: 1
-lidar_std: 0.01
+lidar_std: 0.01 #激光雷达测量标准差
 
 # topic names
 imu_topic: "/imu/data"
@@ -31,6 +31,7 @@ gyr_n: 0.1    #陀螺仪噪声，      单位 degree per hour(M_PI/180.0/3600.0)
 acc_w: 500    #加速度计bias噪声, 单位 micro-gravity force per second(ug/sqrt(1.0))
 gyr_w: 0.05   #陀螺仪bias噪声，  单位 degree per square-root hour( deg / sqrt(3600.0))
 
+#滤波器初始covariance
 init_pos_std: !!opencv-matrix
    rows: 3
    cols: 1
@@ -60,6 +61,7 @@ init_gyr_std: !!opencv-matrix
    cols: 1
    dt: d
    data: [0.002, 0.002, 0.002]
+
   
 # initial IMU biases
 init_ba: !!opencv-matrix

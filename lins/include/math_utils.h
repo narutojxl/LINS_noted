@@ -128,6 +128,8 @@ static Eigen::Quaterniond ypr2Quat(const Eigen::Vector3d &ypr) {
   return Q;
 }
 
+
+//jxl参照https://en.wikipedia.org/wiki/Conversion_between_quaternions_and_Euler_angles#Euler_Angles_to_Quaternion_Conversion
 static Eigen::Quaterniond rpy2Quat(const Eigen::Vector3d &rpy) {
   double halfYaw = double(rpy(2)) * double(0.5);
   double halfPitch = double(rpy(1)) * double(0.5);
@@ -206,6 +208,7 @@ static Eigen::Matrix<typename Derived::Scalar, 3, 3> skew(
   return ans;
 }
 
+//jxl: 返回实部>0的四元数，实部>0的四元数对应shortest四元数
 template <typename Derived>
 static Eigen::Quaternion<typename Derived::Scalar> positify(
     const Eigen::QuaternionBase<Derived> &q) {
@@ -258,6 +261,7 @@ static Eigen::MatrixBase<Derived> deg2rag(
                                     deg2rad(degrees(2)));
 }
 
+//jxl: 四元数[q]L, joan sola 18式
 template <typename Derived>
 static Eigen::Matrix<typename Derived::Scalar, 4, 4> Qleft(
     const Eigen::QuaternionBase<Derived> &q) {
@@ -273,6 +277,7 @@ static Eigen::Matrix<typename Derived::Scalar, 4, 4> Qleft(
   return ans;
 }
 
+//四元数[q]R
 template <typename Derived>
 static Eigen::Matrix<typename Derived::Scalar, 4, 4> Qright(
     const Eigen::QuaternionBase<Derived> &p) {
@@ -288,6 +293,7 @@ static Eigen::Matrix<typename Derived::Scalar, 4, 4> Qright(
   return ans;
 }
 
+//jxl: 在轴角axis处的左雅克比
 template <typename Derived>
 static Eigen::Matrix<typename Derived::Scalar, 3, 3> Rleft(
     const Eigen::MatrixBase<Derived> axis) {
@@ -304,6 +310,7 @@ static Eigen::Matrix<typename Derived::Scalar, 3, 3> Rleft(
   return ans;
 }
 
+//jxl: 在轴角axis处的左雅克比的逆
 static Eigen::Matrix<double, 3, 3> Rinvleft(
     const Eigen::Matrix<double, 3, 1> axis) {
   Eigen::Matrix<double, 3, 3> ans;

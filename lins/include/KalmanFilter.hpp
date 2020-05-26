@@ -135,8 +135,8 @@ class StatePredictor {
     }
 
     // Average acceleration and angular rate
-    GlobalState state_tmp = state_;
-    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_;
+    GlobalState state_tmp = state_; //本次用来预测状态的第一帧imu，因为上一次update之后调用了reset，所以此时的state是上次reset()之后的状态；用本次第一帧之后的imu再预测时，状态的初值就是上次预测的结果
+    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_; //TODO： G系下的加速度还是第k帧laser下加速度？？ lins 10式，11式中的R表达式有没有上标bk？？
     V3D un_gyr = 0.5 * (gyr_last + gyr) - state_tmp.bw_;
     Q4D dq = axis2Quat(un_gyr * dt);
     state_tmp.qbn_ = (state_tmp.qbn_ * dq).normalized();
@@ -147,14 +147,17 @@ class StatePredictor {
     state_tmp.rn_ = state_tmp.rn_ + dt * state_tmp.vn_ + 0.5 * dt * dt * un_acc;
     state_tmp.vn_ = state_tmp.vn_ + dt * un_acc;
 
-    if (update_jacobian_) {
-      MXD Ft =
+    //imu积分，把状态PVQ往前传播一个imu时间间隔dt. 注意不是预积分，预积分获得是两个时刻的delta约束。
+    //同时计算误差状态转移矩阵, 和误差状态的方差。误差状态的方差也是预测出来的PVQ状态的方差。
+
+    if (update_jacobian_) {//true
+      MXD Ft = //lins 9式， joan sola 237式
           MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
       Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
 
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =  
           -state_tmp.qbn_.toRotationMatrix() * skew(acc - state_tmp.ba_);
-      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =
+      Ft.block<3, 3>(GlobalState::vel_, GlobalState::acc_) =  
           -state_tmp.qbn_.toRotationMatrix();
       Ft.block<3, 3>(GlobalState::vel_, GlobalState::gra_) = M3D::Identity();
 
@@ -162,7 +165,7 @@ class StatePredictor {
           - skew(gyr - state_tmp.bw_);
       Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
 
-      MXD Gt =
+      MXD Gt = 
           MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
       Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
       Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
@@ -172,12 +175,12 @@ class StatePredictor {
 
       const MXD I =
           MXD::Identity(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
-      F_ = I + Ft * dt + 0.5 * Ft * Ft * dt * dt;
+      F_ = I + Ft * dt + 0.5 * Ft * Ft * dt * dt; //lins 12式, error state propagation matrix 二阶近似
 
       // jacobian_ = F * jacobian_;
       covariance_ =
-          F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose();
-      covariance_ = 0.5 * (covariance_ + covariance_.transpose()).eval();
+          F_ * covariance_ * F_.transpose() + Gt * noise_ * Gt.transpose(); 
+      covariance_ = 0.5 * (covariance_ + covariance_.transpose()).eval(); //math_utils::enforceSymmetry(),强制为对称矩阵
     }
 
     state_ = state_tmp;
@@ -194,6 +197,7 @@ class StatePredictor {
 
   void set(const GlobalState& state) { state_ = state; }
 
+
   void update(const GlobalState& state,
               const Eigen::Matrix<double, GlobalState::DIM_OF_STATE_,
                                   GlobalState::DIM_OF_STATE_>& covariance) {
@@ -201,6 +205,7 @@ class StatePredictor {
     covariance_ = covariance;
   }
 
+  //没有使用
   void initialization(double time, const V3D& rn, const V3D& vn, const Q4D& qbn,
                       const V3D& ba, const V3D& bw) {
     state_ = GlobalState(rn, vn, qbn, ba, bw);
@@ -210,6 +215,7 @@ class StatePredictor {
     initializeCovariance();
   }
 
+  //没有使用
   void initialization(double time, const V3D& rn, const V3D& vn, const Q4D& qbn,
                       const V3D& ba, const V3D& bw, const V3D& acc,
                       const V3D& gyr) {
@@ -223,6 +229,7 @@ class StatePredictor {
     initializeCovariance();
   }
 
+  //没有使用
   void initialization(double time, const V3D& rn, const V3D& vn, const V3D& ba,
                       const V3D& bw, double roll = 0.0, double pitch = 0.0,
                       double yaw = 0.0) {
@@ -232,13 +239,14 @@ class StatePredictor {
 
     initializeCovariance();
   }
-
+  
+  
   void initialization(double time, const V3D& rn, const V3D& vn, const V3D& ba,
                       const V3D& bw, const V3D& acc, const V3D& gyr,
                       double roll = 0.0, double pitch = 0.0, double yaw = 0.0) {
     state_ = GlobalState(rn, vn, rpy2Quat(V3D(roll, pitch, yaw)), ba, bw);
-    time_ = time;
-    acc_last = acc;
+    time_ = time; //first/second scan time
+    acc_last = acc; 
     gyr_last = gyr;
     flag_init_imu_ = true;
     flag_init_state_ = true;
@@ -308,19 +316,22 @@ class StatePredictor {
     }
 
     noise_.setZero();
-    noise_.block<3, 3>(0, 0) = V3D(peba, peba, peba).asDiagonal();
-    noise_.block<3, 3>(3, 3) = V3D(pebg, pebg, pebg).asDiagonal();
-    noise_.block<3, 3>(6, 6) = V3D(pweba, pweba, pweba).asDiagonal();
-    noise_.block<3, 3>(9, 9) = V3D(pwebg, pwebg, pwebg).asDiagonal();
+    noise_.block<3, 3>(0, 0) = V3D(peba, peba, peba).asDiagonal(); //加速度计噪声 na, 见lins论文
+    noise_.block<3, 3>(3, 3) = V3D(pebg, pebg, pebg).asDiagonal(); //陀螺仪噪声 ng
+    noise_.block<3, 3>(6, 6) = V3D(pweba, pweba, pweba).asDiagonal(); //加速度计bias噪声 nba
+    noise_.block<3, 3>(9, 9) = V3D(pwebg, pwebg, pwebg).asDiagonal(); //陀螺仪bias噪声 nbg
   }
 
   void reset(int type = 0) {
     if (type == 0) {
       state_.rn_.setZero();
-      state_.vn_ = state_.qbn_.inverse() * state_.vn_;
+      
+      // state_.vn_ = state_.qbn_.inverse() * state_.vn_; //TODO初始化有问题,在构造函数中调用reset()
+      state_.vn_.setZero(); //jxl
       state_.qbn_.setIdentity();
+
       initializeCovariance();
-    } else if (type == 1) {
+    } else if (type == 1) {//每次在IESKF之后调用
       V3D covPos = INIT_POS_STD.array().square();
       double covRoll = pow(deg2rad(INIT_ATT_STD(0)), 2);
       double covPitch = pow(deg2rad(INIT_ATT_STD(1)), 2);
@@ -338,48 +349,55 @@ class StatePredictor {
       covariance_.setZero();
       covariance_.block<3, 3>(GlobalState::pos_, GlobalState::pos_) =
           covPos.asDiagonal();  // pos
+
       covariance_.block<3, 3>(GlobalState::vel_, GlobalState::vel_) =
-          state_.qbn_.inverse() * vel_cov * state_.qbn_;  // vel
+          state_.qbn_.inverse() * vel_cov * state_.qbn_;  // vel  //TODO 再乘以state_.qbn_ 是什么意思？
+
       covariance_.block<3, 3>(GlobalState::att_, GlobalState::att_) =
           V3D(covRoll, covPitch, covYaw).asDiagonal();  // att
+
       covariance_.block<3, 3>(GlobalState::acc_, GlobalState::acc_) = acc_cov;
       covariance_.block<3, 3>(GlobalState::gyr_, GlobalState::gyr_) = gyr_cov;
       covariance_.block<3, 3>(GlobalState::gra_, GlobalState::gra_) =
-          state_.qbn_.inverse() * gra_cov * state_.qbn_;
+          state_.qbn_.inverse() * gra_cov * state_.qbn_; //TODO 同上
+      
 
+      //状态的QT分量被置为I，0，其余分量保持上一次update之后的值
       state_.rn_.setZero();
       state_.vn_ = state_.qbn_.inverse() * state_.vn_;
       state_.qbn_.setIdentity();
-      state_.gn_ = state_.qbn_.inverse() * state_.gn_;
-      state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm();
+
+      state_.gn_ = state_.qbn_.inverse() * state_.gn_; //state_.qbn_已经为I阵
+      state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm(); //还是全局下的gravity, 几乎没有变化
       // initializeCovariance(1);
     }
   }
 
-  void reset(V3D vn, V3D ba, V3D bw) {
-    state_.setIdentity();
-    state_.vn_ = vn;
-    state_.ba_ = ba;
-    state_.bw_ = bw;
-    initializeCovariance();
-  }
+  //没有使用
+  // void reset(V3D vn, V3D ba, V3D bw) {
+  //   state_.setIdentity();
+  //   state_.vn_ = vn;
+  //   state_.ba_ = ba;
+  //   state_.bw_ = bw;
+  //   initializeCovariance();
+  // }
 
   inline bool isInitialized() { return flag_init_state_; }
 
-  GlobalState state_;
+  GlobalState state_; //滤波器的状态：k时刻laser到k+1时刻laser的delta_(p, v, q, ba, bg), gravity_in_G
   double time_;
-  Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_>
-      F_;
-  Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_>
-      jacobian_, covariance_;
-  Eigen::Matrix<double, GlobalState::DIM_OF_NOISE_, GlobalState::DIM_OF_NOISE_>
-      noise_;
+
+  Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_> F_; //jxl: error state propagation matrix
+      
+  Eigen::Matrix<double, GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_> jacobian_, covariance_; //jacobian_没有使用; 状态的方差
+
+  Eigen::Matrix<double, GlobalState::DIM_OF_NOISE_, GlobalState::DIM_OF_NOISE_> noise_; //噪声的协方差矩阵
 
   V3D acc_last;  // last acceleration measurement
   V3D gyr_last;  // last gyroscope measurement
 
-  bool flag_init_state_;
-  bool flag_init_imu_;
+  bool flag_init_state_= false; //作者没有初始化,我们补上 
+  bool flag_init_imu_ = false;
 };
 
 };  // namespace filter
