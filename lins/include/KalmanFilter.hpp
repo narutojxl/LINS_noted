@@ -136,16 +136,16 @@ class StatePredictor {
 
     // Average acceleration and angular rate
     GlobalState state_tmp = state_; //本次用来预测状态的第一帧imu，因为上一次update之后调用了reset，所以此时的state是上次reset()之后的状态；用本次第一帧之后的imu再预测时，状态的初值就是上次预测的结果
-    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_; //TODO： G系下的加速度还是第k帧laser下加速度？？ lins 10式，11式中的R表达式有没有上标bk？？
+    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_; //0指的是：第k帧laser下加速度，见lins 10式，11式中的R^bk_t
     V3D un_gyr = 0.5 * (gyr_last + gyr) - state_tmp.bw_;
     Q4D dq = axis2Quat(un_gyr * dt);
-    state_tmp.qbn_ = (state_tmp.qbn_ * dq).normalized();
+    state_tmp.qbn_ = (state_tmp.qbn_ * dq).normalized(); //R^bk_t: 从bk到当前t时刻的旋转
     V3D un_acc_1 = state_tmp.qbn_ * (acc - state_tmp.ba_) + state_tmp.gn_;
     V3D un_acc = 0.5 * (un_acc_0 + un_acc_1);
 
     // State integral
-    state_tmp.rn_ = state_tmp.rn_ + dt * state_tmp.vn_ + 0.5 * dt * dt * un_acc;
-    state_tmp.vn_ = state_tmp.vn_ + dt * un_acc;
+    state_tmp.rn_ = state_tmp.rn_ + dt * state_tmp.vn_ + 0.5 * dt * dt * un_acc; //t^bk_t: 从bk到当前t时刻的平移
+    state_tmp.vn_ = state_tmp.vn_ + dt * un_acc; //当前时刻在bk下的速度
 
     //imu积分，把状态PVQ往前传播一个imu时间间隔dt. 注意不是预积分，预积分获得是两个时刻的delta约束。
     //同时计算误差状态转移矩阵, 和误差状态的方差。误差状态的方差也是预测出来的PVQ状态的方差。
@@ -326,7 +326,7 @@ class StatePredictor {
     if (type == 0) {
       state_.rn_.setZero();
       
-      // state_.vn_ = state_.qbn_.inverse() * state_.vn_; //TODO初始化有问题,在构造函数中调用reset()
+      // state_.vn_ = state_.qbn_.inverse() * state_.vn_; //default //TODO初始化有问题,在构造函数中调用reset()
       state_.vn_.setZero(); //jxl
       state_.qbn_.setIdentity();
 
@@ -351,7 +351,7 @@ class StatePredictor {
           covPos.asDiagonal();  // pos
 
       covariance_.block<3, 3>(GlobalState::vel_, GlobalState::vel_) =
-          state_.qbn_.inverse() * vel_cov * state_.qbn_;  // vel  //TODO 再乘以state_.qbn_ 是什么意思？
+          state_.qbn_.inverse() * vel_cov * state_.qbn_;  // vel  //TODO 为何再乘以state_.qbn_ 
 
       covariance_.block<3, 3>(GlobalState::att_, GlobalState::att_) =
           V3D(covRoll, covPitch, covYaw).asDiagonal();  // att
@@ -367,9 +367,10 @@ class StatePredictor {
       state_.vn_ = state_.qbn_.inverse() * state_.vn_;
       state_.qbn_.setIdentity();
 
-      state_.gn_ = state_.qbn_.inverse() * state_.gn_; //state_.qbn_已经为I阵
+      state_.gn_ = state_.qbn_.inverse() * state_.gn_; //state_.qbn_已经为I阵; state_.gn_: update结束后的值
       state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm(); //还是全局下的gravity, 几乎没有变化
       // initializeCovariance(1);
+      //std::cout<<"reset(): state_.gn_ = \n"<<state_.gn_<<std::endl;
     }
   }
 

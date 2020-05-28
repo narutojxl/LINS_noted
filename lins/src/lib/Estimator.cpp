@@ -64,7 +64,7 @@ void LinsFusion::initialization() {
   pubOutlierCloudLast =
       pnh_.advertise<sensor_msgs::PointCloud2>("/outlier_cloud_last", 2); //后端使用
   pubLaserOdometry =
-      pnh_.advertise<nav_msgs::Odometry>(LIDAR_ODOMETRY_TOPIC, 5);
+      pnh_.advertise<nav_msgs::Odometry>(LIDAR_ODOMETRY_TOPIC, 5); //后端使用odom topic
 
   // Set types of the point cloud
   distortedPointCloud.reset(new pcl::PointCloud<PointType>());
@@ -107,7 +107,7 @@ void LinsFusion::outlierCloudCallback(
   outlierBuf_.addMeas(laserCloudMsg, laserCloudMsg->header.stamp.toSec());
 }
 
-//后端的回调函数，干什么用？
+//TODO 后端的回调函数，干什么用？
 void LinsFusion::mapOdometryCallback(
     const nav_msgs::Odometry::ConstPtr& odometryMsg) {
   geometry_msgs::Quaternion geoQuat = odometryMsg->pose.pose.orientation;

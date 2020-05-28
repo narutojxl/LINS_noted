@@ -90,7 +90,7 @@ class MappingHandler {
   ros::Publisher pubLaserCloudSurround;
   ros::Publisher pubOdomAftMapped;
   ros::Publisher pubKeyPoses;
-  ros::Publisher pubOdomXYZAftMapped;
+  ros::Publisher pubOdomXYZAftMapped; //lins add 
 
   ros::Publisher pubHistoryKeyFrames;
   ros::Publisher pubIcpKeyFrames;
@@ -106,7 +106,7 @@ class MappingHandler {
   nav_msgs::Odometry odomAftMapped;
   tf::StampedTransform aftMappedTrans;
 
-  tf::TransformBroadcaster tfXYZBroadcaster;
+  tf::TransformBroadcaster tfXYZBroadcaster;//lins add
   nav_msgs::Odometry odomXYZAftMapped;
   tf::StampedTransform aftMappedXYZTrans;
 
@@ -267,11 +267,12 @@ class MappingHandler {
         this);
     subOutlierCloudLast = pnh.subscribe<sensor_msgs::PointCloud2>(
         "/outlier_cloud_last", 2, &MappingHandler::laserCloudOutlierLastHandler,
-        this);
+        this); //注意：在前端中作者没有像corner和surf points转换到自己所在帧的end时刻，outlier points还是在自己帧的start时刻
+
     subLaserOdometry = pnh.subscribe<nav_msgs::Odometry>(
-        "/laser_odom_to_init", 5, &MappingHandler::laserOdometryHandler, this);
+        "/laser_odom_to_init", 5, &MappingHandler::laserOdometryHandler, this); //odom topic 
     subImu = pnh.subscribe<sensor_msgs::Imu>("no_imu", 50,
-                                             &MappingHandler::imuHandler, this);
+                                             &MappingHandler::imuHandler, this);//没有使用
 
     pubHistoryKeyFrames =
         pnh.advertise<sensor_msgs::PointCloud2>("/history_cloud", 2);
@@ -296,7 +297,7 @@ class MappingHandler {
     aftMappedTrans.frame_id_ = "/camera_init";
     aftMappedTrans.child_frame_id_ = "/aft_mapped";
 
-    aftMappedXYZTrans.frame_id_ = "/map";
+    aftMappedXYZTrans.frame_id_ = "/map"; //猜测应该是正常的ros laser坐标系在map下的位姿
     aftMappedXYZTrans.child_frame_id_ = "/aft_xyz_mapped";
 
     allocateMemory();
@@ -776,6 +777,7 @@ class MappingHandler {
     tfBroadcaster.sendTransform(aftMappedTrans);
   }
 
+  //lins add
   void publishXYZTF() {
     geometry_msgs::Quaternion geoQuat = tf::createQuaternionMsgFromRollPitchYaw(
         transformAftMapped[2], transformAftMapped[0], transformAftMapped[1]);
@@ -918,7 +920,8 @@ class MappingHandler {
     //         transformAftMapped[3], transformAftMapped[4]));
     //         tfXYZBroadcaster.sendTransform(aftMappedXYZTrans);
   }
-
+  
+  //没有使用
   void publishXYTF() {
     // std::cout << "publishXYTF "<< std::endl;
 
@@ -973,15 +976,43 @@ class MappingHandler {
     }
   }
 
-  void visualizeGlobalMapThread() {
-    ros::Rate rate(0.2);
-    while (ros::ok()) {
-      rate.sleep();
-      publishGlobalMap();
-    }
-  }
+    void visualizeGlobalMapThread(){
+        ros::Rate rate(0.2);
+        while (ros::ok()){
+            rate.sleep();
+            publishGlobalMap();
+        }
+        // save final point cloud
+        std:;string fileDirectory("/tmp/");
+        pcl::io::savePCDFileASCII(fileDirectory+"lins_finalCloud.pcd", *globalMapKeyFramesDS);
 
-  void publishGlobalMap() {
+        string cornerMapString = "/tmp/lins_cornerMap.pcd";
+        string surfaceMapString = "/tmp/lins_surfaceMap.pcd";
+        string trajectoryString = "/tmp/lins_trajectory.pcd";
+
+        pcl::PointCloud<PointType>::Ptr cornerMapCloud(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr cornerMapCloudDS(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr surfaceMapCloud(new pcl::PointCloud<PointType>());
+        pcl::PointCloud<PointType>::Ptr surfaceMapCloudDS(new pcl::PointCloud<PointType>());
+        
+        for(int i = 0; i < cornerCloudKeyFrames.size(); i++) {
+            *cornerMapCloud  += *transformPointCloud(cornerCloudKeyFrames[i],   &cloudKeyPoses6D->points[i]);
+    	    *surfaceMapCloud += *transformPointCloud(surfCloudKeyFrames[i],     &cloudKeyPoses6D->points[i]);
+    	    *surfaceMapCloud += *transformPointCloud(outlierCloudKeyFrames[i],  &cloudKeyPoses6D->points[i]);
+        }
+
+        downSizeFilterCorner.setInputCloud(cornerMapCloud);
+        downSizeFilterCorner.filter(*cornerMapCloudDS);
+        downSizeFilterSurf.setInputCloud(surfaceMapCloud);
+        downSizeFilterSurf.filter(*surfaceMapCloudDS);
+
+        pcl::io::savePCDFileASCII(fileDirectory+"lins_cornerMap.pcd", *cornerMapCloudDS);
+        pcl::io::savePCDFileASCII(fileDirectory+"lins_surfaceMap.pcd", *surfaceMapCloudDS);
+        pcl::io::savePCDFileASCII(fileDirectory+"lins_trajectory.pcd", *cloudKeyPoses3D);
+    }
+
+    void publishGlobalMap(){
+
     if (pubLaserCloudSurround.getNumSubscribers() == 0) return;
 
     if (cloudKeyPoses3D->points.empty() == true) return;
@@ -1027,7 +1058,7 @@ class MappingHandler {
     globalMapKeyPoses->clear();
     globalMapKeyPosesDS->clear();
     globalMapKeyFrames->clear();
-    globalMapKeyFramesDS->clear();
+    // globalMapKeyFramesDS->clear(); //原始的lego_loam中该语句是屏蔽的
   }
 
   void loopClosureThread() {

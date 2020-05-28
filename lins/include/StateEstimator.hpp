@@ -42,6 +42,9 @@
 #include "cloud_msgs/cloud_info.h"
 #include "integrationBase.h"
 
+
+#include <geometry_msgs/PoseStamped.h>
+
 using namespace Eigen;
 using namespace std;
 using namespace math_utils;
@@ -224,6 +227,9 @@ public:
     // gravity_feedback << 0, 0, -G0;
 
     status_ = STATUS_INIT;
+
+    //jxl debug
+    pub_correctRollPitch_ = nh_.advertise<geometry_msgs::PoseStamped>("/filter_gn_correctRollPitch", 1);
   }
 
   ~StateEstimator() {
@@ -473,6 +479,15 @@ public:
     // directly solve more accurate roll and pitch angles to correct the global
     // state
     calculateRPfromGravity(filter_->state_.gn_, roll, pitch); //TODO 感觉roll，pitch会一直为0？？
+    geometry_msgs::PoseStamped debug_msg;
+    debug_msg.header.stamp = ros::Time().fromSec(filter_->time_);  //header.stamp.toSec()
+    debug_msg.pose.position.x = filter_->state_.gn_(0);
+    debug_msg.pose.position.y = filter_->state_.gn_(1);
+    debug_msg.pose.position.z = filter_->state_.gn_(2);
+    debug_msg.pose.orientation.x = rad2deg(roll);
+    debug_msg.pose.orientation.y = rad2deg(pitch);
+    //std::cout<<"(roll, pitch) = ("<<rad2deg(roll)<<", "<<rad2deg(pitch)<<")"<<std::endl<<std::endl;
+    pub_correctRollPitch_.publish(debug_msg);
     correctRollPitch(roll, pitch);
 
     // Undistort point cloud using estimated relative transform
@@ -528,7 +543,7 @@ public:
       // Memery allocation
       const unsigned int DIM_OF_MEAS = keypoints_->points.size(); // m
       residual_.resize(DIM_OF_MEAS);
-      Hk_.resize(DIM_OF_MEAS, DIM_OF_STATE);   // m*18  //TODO 残差对状态的雅克比，不是对error state的雅克比？
+      Hk_.resize(DIM_OF_MEAS, DIM_OF_STATE);   // m*18  //残差对状态的雅克比，不是对error state的雅克比。作者滤波器里的状态变量是bk到bk+1时刻delta变换，不是error state.
       Rk_.resize(DIM_OF_MEAS, DIM_OF_MEAS);    // m*m  测量方差
       Kk_.resize(DIM_OF_STATE, DIM_OF_MEAS);   // 18*m
       Py_.resize(DIM_OF_MEAS, DIM_OF_MEAS);    // m*m
@@ -552,7 +567,7 @@ public:
             Rinvleft(-axis); //李代数求导公式，比右扰动公式更精确，高翔4.32式
 
         Hk_.block<1, 3>(i, GlobalState::pos_) =   
-            coff_xyz.transpose() * M3D::Identity(); //s已经乘在了coff_xyz里
+            coff_xyz.transpose() * M3D::Identity(); //TODO 好像少了一个s？
         //因为测量方程中只包含状态的QT分量(R, t)，所以残差只对这两个分量不为零
       }
 
@@ -1087,10 +1102,10 @@ public:
         float d12 = (P1xyz - P2xyz).norm();
         float res = r / d12; // i到(j,l)直线的距离
 
-        V3D jacxyz = P.transpose() * math_utils::skew(P2xyz - P1xyz) /(d12 * r); //距离对pi的雅克比 //TODO w=u(x-c1) x v(x-c2),
-        //求w对x的导数，x，c1, c2为R^3, c1,c2为常量
+        V3D jacxyz = P.transpose() * math_utils::skew(P2xyz - P1xyz) /(d12 * r); //距离对pi的雅克比
+        //w=u(x-c1) x v(x-c2),求w对x的导数，x，c1, c2为R^3, c1,c2为常量
         // https://math.stackexchange.com/questions/3686642/whats-the-differential-of-the-cross-product-wrt-a-vector
-        //感觉应该为P^T * (p2-p1)^ / d12
+        //TODO 感觉应该为P^T * (p2-p1)^ / d12
 
         float s = 1;
         if (iterCount >= ICP_FREQ) {
@@ -1187,8 +1202,8 @@ public:
       scan_new_->surfPointsLessFlatYZX_->push_back(point);
     }
     for (int i = 0; i < scan_new_->outlierPointCloud_->points.size(); i++) {
-      // transformToEnd(&scan_new_->outlierPointCloud_->points[i],
-      //                &scan_new_->outlierPointCloud_->points[i]); //TODO 为何把outlier points不转换到end时刻？
+      transformToEnd(&scan_new_->outlierPointCloud_->points[i],
+                     &scan_new_->outlierPointCloud_->points[i]); //TODO 作者默认没有把outlier points转换到end时刻, 应该要转
       point.x = scan_new_->outlierPointCloud_->points[i].y;
       point.y = scan_new_->outlierPointCloud_->points[i].z;
       point.z = scan_new_->outlierPointCloud_->points[i].x;
@@ -1201,7 +1216,7 @@ public:
     globalStateYZX_.rn_ = Q_xyz_to_yzx * globalState_.rn_;
     globalStateYZX_.qbn_ =
         Q_xyz_to_yzx * globalState_.qbn_ *
-        Q_xyz_to_yzx.inverse(); // TODO 感觉这的公式有问题，应该为 Q_xyz_to_yzx * globalState_.qbn_
+        Q_xyz_to_yzx.inverse(); //YZX_t时刻在YZX_0坐标系下的旋转
 
     if (scan_new_->cornerPointsLessSharp_->points.size() >= 5 &&
         scan_new_->surfPointsLessFlat_->points.size() >= 20) {
@@ -1297,14 +1312,13 @@ public:
       V3D jacobian1xyz =
           coff_xyz.transpose() *
           (-R21xyz.toRotationMatrix() * skew(P2xyz)); // rotation jacobian
-      //点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 *
-      //p0对R的雅克比
+      //点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 * p0对R的雅克比
       //其中p0对R的雅克比： 整个程序的R是Hamilton惯例，按照其右扰动对应局部扰动,
       //按照右扰动公式
       // = -Rp^
 
       V3D jacobian2xyz = coff_xyz.transpose() *
-                         M3D::Identity(); // translation jacobian  //s已经乘在了coff_xyz里
+                         M3D::Identity(); // translation jacobian  //TODO 好像少了一个s？
 
       double residual = coeff.intensity;
 
@@ -1481,7 +1495,7 @@ public:
     bw = INIT_BW;
   }
 
-  Estimate gyroscope bias using a similar methoed provided in VINS-Mono
+  // Estimate gyroscope bias using a similar methoed provided in VINS-Mono
   void solveGyroscopeBias(const Q4D& q, V3D& bw) {
     Matrix3d A;
     V3D b;
@@ -1572,6 +1586,10 @@ public:
       Q_yzx_to_xyz; //把zhangji下的点(Z-front,X-left,Y-up)转换到ros坐标系下(X-front,Y-left,Z-up)的四元数
   Eigen::Quaterniond Q_xyz_to_yzx;
   GlobalState globalStateYZX_;
+
+  //jxl 
+  ros::Publisher pub_correctRollPitch_;
+  ros::NodeHandle nh_;
 };
 
 } // namespace fusion
