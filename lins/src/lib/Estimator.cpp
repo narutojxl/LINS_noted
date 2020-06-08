@@ -72,9 +72,9 @@ void LinsFusion::initialization() {
 
   // Allocate measurement buffers for sensors
   imuBuf_.allocate(500);
-  pclBuf_.allocate(3);
-  outlierBuf_.allocate(3);
-  cloudInfoBuf_.allocate(3);
+  pclBuf_.allocate(30); //TODO 这三个变量的默认大小为3
+  outlierBuf_.allocate(30);
+  cloudInfoBuf_.allocate(30);
 
   // Initialize IMU propagation parameters
   isImuCalibrated = CALIBARTE_IMU;
@@ -107,7 +107,7 @@ void LinsFusion::outlierCloudCallback(
   outlierBuf_.addMeas(laserCloudMsg, laserCloudMsg->header.stamp.toSec());
 }
 
-//TODO 后端的回调函数，干什么用？
+//TODO后端发布的，暂时没什么用
 void LinsFusion::mapOdometryCallback(
     const nav_msgs::Odometry::ConstPtr& odometryMsg) {
   geometry_msgs::Quaternion geoQuat = odometryMsg->pose.pose.orientation;

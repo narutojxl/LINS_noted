@@ -69,8 +69,7 @@ class ImageProjection {
   cloud_msgs::cloud_info segMsg;
   std_msgs::Header cloudHeader;
 
-  // std::vector<std::pair<uint8_t, uint8_t> > neighborIterator; //lego_loam中已经改为int8_t
-  std::vector<std::pair<int8_t, int8_t> > neighborIterator;
+  std::vector<std::pair<uint8_t, uint8_t> > neighborIterator;
 
   uint16_t* allPushedIndX;
   uint16_t* allPushedIndY;
@@ -194,7 +193,7 @@ class ImageProjection {
         -atan2(laserCloudIn->points[0].y, laserCloudIn->points[0].x);
     segMsg.endOrientation =
         -atan2(laserCloudIn->points[laserCloudIn->points.size() - 1].y,
-               laserCloudIn->points[laserCloudIn->points.size() - 1].x) +
+               laserCloudIn->points[laserCloudIn->points.size() - 2].x) +
         2 * M_PI;
     if (segMsg.endOrientation - segMsg.startOrientation > 3 * M_PI) {
       segMsg.endOrientation -= 2 * M_PI;
@@ -299,18 +298,16 @@ class ImageProjection {
       for (size_t j = 0; j < SCAN_NUM; ++j) {
         if (labelMat.at<int>(i, j) > 0 || groundMat.at<int8_t>(i, j) == 1) {
           if (labelMat.at<int>(i, j) == 999999) {
-            // if (i > groundScanInd && j % 5 == 0) {//default
-            if (i > groundScanInd) { //jxl
+            if (i > groundScanInd && j % 5 == 0) {
               outlierCloud->push_back(fullCloud->points[j + i * SCAN_NUM]);
               continue;
             } else {
               continue;
             }
           }
-          //jxl: we add all ground points 
-          // if (groundMat.at<int8_t>(i, j) == 1) {
-          //   if (j % 5 != 0 && j > 5 && j < SCAN_NUM - 5) continue;
-          // }
+          if (groundMat.at<int8_t>(i, j) == 1) {
+            if (j % 5 != 0 && j > 5 && j < SCAN_NUM - 5) continue;
+          }
           segMsg.segmentedCloudGroundFlag[sizeOfSegCloud] =
               (groundMat.at<int8_t>(i, j) == 1);
           segMsg.segmentedCloudColInd[sizeOfSegCloud] = j;

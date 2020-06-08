@@ -85,7 +85,7 @@ class IntegrationBase {
     result_linearized_bg = linearized_bg; //一直为init_bw
 
     
-    //TODOjxl: 这计算的jacobian是谁关于谁的？
+    //TODO这计算的jacobian是谁关于谁的？作者在github上回复说见vins-mono
     if (update_jacobian) {//1
       Vector3d w_x = //w-b
           0.5 * (_gyr_0 + _gyr_1) - linearized_bg;  // angular_velocity

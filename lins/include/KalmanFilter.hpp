@@ -326,8 +326,9 @@ class StatePredictor {
     if (type == 0) {
       state_.rn_.setZero();
       
-      // state_.vn_ = state_.qbn_.inverse() * state_.vn_; //default //TODO初始化有问题,在构造函数中调用reset()
-      state_.vn_.setZero(); //jxl
+      state_.vn_ = state_.qbn_.inverse() * state_.vn_; //default
+      // state_.vn_.setZero(); //为何不是这样的？
+
       state_.qbn_.setIdentity();
 
       initializeCovariance();
@@ -368,20 +369,20 @@ class StatePredictor {
       state_.qbn_.setIdentity();
 
       state_.gn_ = state_.qbn_.inverse() * state_.gn_; //state_.qbn_已经为I阵; state_.gn_: update结束后的值
+      // std::cout<<"reset(): before reset, state_.gn_ normal= "<< state_.gn_.norm()<<"\n\n";
       state_.gn_ = state_.gn_ * 9.81 / state_.gn_.norm(); //还是全局下的gravity, 几乎没有变化
       // initializeCovariance(1);
-      //std::cout<<"reset(): state_.gn_ = \n"<<state_.gn_<<std::endl;
     }
   }
 
   //没有使用
-  // void reset(V3D vn, V3D ba, V3D bw) {
-  //   state_.setIdentity();
-  //   state_.vn_ = vn;
-  //   state_.ba_ = ba;
-  //   state_.bw_ = bw;
-  //   initializeCovariance();
-  // }
+  void reset(V3D vn, V3D ba, V3D bw) {
+    state_.setIdentity();
+    state_.vn_ = vn;
+    state_.ba_ = ba;
+    state_.bw_ = bw;
+    initializeCovariance();
+  }
 
   inline bool isInitialized() { return flag_init_state_; }
 
