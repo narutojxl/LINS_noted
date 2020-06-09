@@ -575,8 +575,8 @@ public:
       Py_ =
           Hk_ * Pk_ * Hk_.transpose() + Rk_;  // S = H * P * H.transpose() + R;
       Pyinv_.setIdentity();                   // solve Ax=B
-      // Py_.llt().solveInPlace(Pyinv_); //default 
-      Pyinv_ = Py_.colPivHouseholderQr().solve(Pyinv_);  //jxl we add
+      Py_.llt().solveInPlace(Pyinv_); //default 
+      // Pyinv_ = Py_.colPivHouseholderQr().solve(Pyinv_);  //jxl we add
 
       Kk_ = Pk_ * Hk_.transpose() * Pyinv_;  // K = P*H.transpose()*S.inverse()
 
