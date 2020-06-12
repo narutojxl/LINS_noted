@@ -151,8 +151,8 @@ class StatePredictor {
     //同时计算误差状态转移矩阵, 和误差状态的方差。误差状态的方差也是预测出来的PVQ状态的方差。
 
     if (update_jacobian_) {//true
-      MXD Ft = //lins 9式， joan sola 237式
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_);
+      MXD Ft =                    //lins 9式， joan sola 237式
+          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_STATE_); //18*18
       Ft.block<3, 3>(GlobalState::pos_, GlobalState::vel_) = M3D::Identity();
 
       Ft.block<3, 3>(GlobalState::vel_, GlobalState::att_) =  
@@ -166,7 +166,7 @@ class StatePredictor {
       Ft.block<3, 3>(GlobalState::att_, GlobalState::gyr_) = -M3D::Identity();
 
       MXD Gt = 
-          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_);
+          MXD::Zero(GlobalState::DIM_OF_STATE_, GlobalState::DIM_OF_NOISE_); //18*12
       Gt.block<3, 3>(GlobalState::vel_, 0) = -state_tmp.qbn_.toRotationMatrix();
       Gt.block<3, 3>(GlobalState::att_, 3) = -M3D::Identity();
       Gt.block<3, 3>(GlobalState::acc_, 6) = M3D::Identity();

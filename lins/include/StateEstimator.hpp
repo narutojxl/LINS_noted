@@ -256,7 +256,7 @@ public:
       gyr_0_ = gyr;
       break;
     case STATUS_RUNNING:
-      filter_->predict(dt, acc, gyr, true);
+      filter_->predict(dt, acc, gyr, true); //imu积分, 把PVQ状态往前推一个imu时间戳，同时计算状态的方差
       break;
     default:
       break;
@@ -1089,10 +1089,10 @@ public:
         float res = r / d12; // i到(j,l)直线的距离
         V3D jacxyz =
             P.transpose() * math_utils::skew(P2xyz - P1xyz) / (d12 * r);	
-        //距离对pi的雅克比
+        //点到直线的距离对pi的雅克比
         //w=u(x-c1) x v(x-c2),求w对x的导数，x，c1, c2为R^3, c1,c2为常量
-        // https://math.stackexchange.com/questions/3686642/whats-the-differential-of-the-cross-product-wrt-a-vector
-        //TODO 感觉应该为P^T * (p2-p1)^ / d12
+        //https://math.stackexchange.com/questions/3686642/whats-the-differential-of-the-cross-product-wrt-a-vector
+        //见我的提问https://github.com/ChaoqinRobotics/LINS---LiDAR-inertial-SLAM/issues/7
 
         float s = 1;
         if (iterCount >= ICP_FREQ) {
@@ -1139,11 +1139,11 @@ public:
     Q4D R21xyz = axis2Quat(s * phi);
     R21xyz.normalized();
     V3D T112xyz = s * linState_.rn_;
-    V3D P1xyz = R21xyz * P2xyz + T112xyz;
+    V3D P1xyz = R21xyz * P2xyz + T112xyz; //先转换到start
 
     R21xyz = linState_.qbn_;
     T112xyz = linState_.rn_;
-    P2xyz = R21xyz.inverse() * (P1xyz - T112xyz);
+    P2xyz = R21xyz.inverse() * (P1xyz - T112xyz); //再转换到end
 
     po->x = P2xyz.x();
     po->y = P2xyz.y();
@@ -1298,7 +1298,7 @@ public:
       V3D jacobian1xyz =
           coff_xyz.transpose() *
           (-R21xyz.toRotationMatrix() * skew(P2xyz)); // rotation jacobian
-      //点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 * p0对R的雅克比
+      //TODO 点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 * p0对R的雅克比
       //其中p0对R的雅克比： 整个程序的R是Hamilton惯例，按照其右扰动对应局部扰动,
       //按照右扰动公式
       // = -Rp^
@@ -1384,6 +1384,7 @@ public:
     return false;
   }
 
+  //not used
   void estimateInitialState1(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
                              V3D& ba, V3D& bw) {
     ba = INIT_BA;
@@ -1404,6 +1405,7 @@ public:
     cout << "bw0: " << bw.transpose() << endl;
   }
 
+  //not used 
   void estimateInitialState2(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
                              V3D& ba, V3D& bw) {
     const int DIM_OF_STATE = 1 + 1 + 3;
@@ -1450,6 +1452,7 @@ public:
     cout << "test_ba: " << test_ba.transpose() << endl;
   }
 
+  //not used
   void estimateInitialState3(const V3D& p, const Q4D& q, V3D& v0, V3D& v1,
                              V3D& ba, V3D& bw) {
     double sum_dt = preintegration_->sum_dt;
@@ -1483,6 +1486,7 @@ public:
     bw = INIT_BW;
   }
 
+  // not used
   // Estimate gyroscope bias using a similar methoed provided in VINS-Mono
   void solveGyroscopeBias(const Q4D& q, V3D& bw) {
     Matrix3d A;

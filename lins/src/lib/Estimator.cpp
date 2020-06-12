@@ -248,7 +248,7 @@ bool LinsFusion::processPointClouds() {
     estimator->processImu(dt, imu.acc, imu.gyr); //对每一个imu, 预积分一次， filter_time时间往前移一次
     //注意：imu预积分只发生在[laser1, laser2]之间。因为处理完第二帧laser后状态变为STATUS_RUNNING
     //对于[l2,l3], [l3,l4]....之间的imu measurements：
-    //对于每一个imu measurement,对滤波器状态PVQ进行积分，把状态的PVQ往前推一个imu时间间隔，滤波器的时间戳也往前移dt
+    //对于每一个imu measurement,对滤波器状态PVQ进行积分，同时计算状态的方差。把状态的PVQ往前推一个imu时间间隔，滤波器的时间戳也往前移dt
     //本次用来预测状态的第一帧imu，因为上一次update之后调用了reset，所以此时的state是上次reset()之后的状态；用本次第一帧之后的imu再预测时，状态的初值就是上次预测的结果
   }
   //退出while时， filter_time预积分了一个imu时间戳刚好超过scan_time_, 时间戳变为如下：

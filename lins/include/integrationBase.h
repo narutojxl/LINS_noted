@@ -58,7 +58,7 @@ class IntegrationBase {
     propagate(dt, acc, gyr);
   }
 
-
+//跟liom中的integrationBase.h 一样，都是vins_mono中的，只是状态变量的顺序不一样，此处状态顺序是： p v q ba bg
 
 //imu预积分文章： On-Manifold Preintegration for Real-Time Visual–Inertial Odometry
   void midPointIntegration(
@@ -85,7 +85,9 @@ class IntegrationBase {
     result_linearized_bg = linearized_bg; //一直为init_bw
 
     
-    //TODO这计算的jacobian是谁关于谁的？作者在github上回复说见vins-mono
+    //TODO猜测jacobian的物理意义应该是(预积分测量delta_p  预积分测量delta_v   预积分测量delta_q    ba    bg)分别对各个分量的雅克比
+    //F对jacobian更新，如果bias变化时，对imu的预积分测量值的修正要用到上面的jacobian,见liom IntegrationBase.h
+    //计算出来的jacobian将来在StateEstimator.hpp::solveGyroscopeBias()中使用,不过该函数暂时未用
     if (update_jacobian) {//1
       Vector3d w_x = //w-b
           0.5 * (_gyr_0 + _gyr_1) - linearized_bg;  // angular_velocity
@@ -105,7 +107,7 @@ class IntegrationBase {
           a_1_x(0), 0; //[w-a1]^
 
       // the order of a and theta is exchanged. and F = I + F*dt + 0.5*F^2*dt^2
-      MatrixXd F = MatrixXd::Zero(15, 15);
+      MatrixXd F = MatrixXd::Zero(15, 15); 
       F.block<3, 3>(GlobalState::pos_, GlobalState::pos_) = //(0,0)
           Matrix3d::Identity(); 
 
