@@ -1367,7 +1367,11 @@ public:
     }
 
     // Update state linState_
-    Q4D dq = rpy2Quat(x.segment<3>(O_R));
+    Q4D dq = rpy2Quat(x.segment<3>(O_R));     
+    //TODO: 作者认为求出来的是rpy,由rpy得到四元数
+    //liom认为是轴角，由轴角转换得到四元数，见Estimator::CalculateLaserOdom
+    //我认为应该是轴角，因为我们在构建normal equation时传进去关于旋转的雅克比不是对于rpy的，而是关于右扰动或者李代数求导的。
+
     linState_.qbn_ = (linState_.qbn_ * dq).normalized();
     linState_.rn_ += x.segment<3>(O_P);
 

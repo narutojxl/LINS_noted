@@ -106,7 +106,7 @@ class IntegrationBase {
       R_a_1_x << 0, -a_1_x(2), a_1_x(1), a_1_x(2), 0, -a_1_x(0), -a_1_x(1),
           a_1_x(0), 0; //[w-a1]^
 
-      // the order of a and theta is exchanged. and F = I + F*dt + 0.5*F^2*dt^2
+      // the order of a and theta is exchanged. and F = I + Ft*dt + 0.5*Ft^2*dt^2, Ft见KalmanFilter.hpp::predict()
       MatrixXd F = MatrixXd::Zero(15, 15); 
       F.block<3, 3>(GlobalState::pos_, GlobalState::pos_) = //(0,0)
           Matrix3d::Identity(); 
