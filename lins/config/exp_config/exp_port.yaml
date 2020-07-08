@@ -26,10 +26,18 @@ lidar_odometry_topic: "/laser_odom_to_init"
 lidar_mapping_topic: "/integrated_to_init"
 
 # noice parameters
-acc_n: 70000  #加速度计噪声(单位 m/(s^2))， 此处单位ug(1e-6*g)在KalmanFilter.hpp::initializeCovariance()
-gyr_n: 0.1    #陀螺仪噪声(单位rad/s)，     此处单位 degree per hour(M_PI/180.0/3600.0)
-acc_w: 500    #加速度计bias噪声,          此处单位 micro-gravity force per second(ug/sqrt(1.0))
-gyr_w: 0.05   #陀螺仪bias噪声，           此处单位 degree per square-root hour( deg / sqrt(3600.0))
+# acc_n: 70000  #加速度计噪声(单位 m/(s^2))， 此处单位ug(1e-6*g)在KalmanFilter.hpp::initializeCovariance()
+# gyr_n: 0.1    #陀螺仪噪声(单位rad/s)，     此处单位 degree per hour(M_PI/180.0/3600.0)
+# acc_w: 500    #加速度计bias噪声,          此处单位 micro-gravity force per second(ug/sqrt(1.0))
+# gyr_w: 0.05   #陀螺仪bias噪声，           此处单位 degree per square-root hour( deg / sqrt(3600.0))
+
+#对于adi16480来说，如何设置？
+acc_n: 700000  #加速度计噪声(单位 m/(s^2))， 此处单位ug(1e-6*g)在KalmanFilter.hpp::initializeCovariance()
+gyr_n: 1    #陀螺仪噪声(单位rad/s)，     此处单位 degree per hour(M_PI/180.0/3600.0)
+acc_w: 5000    #加速度计bias噪声,          此处单位 micro-gravity force per second(ug/sqrt(1.0))
+gyr_w: 0.5    #陀螺仪bias噪声，           此处单位 degree per square-root hour( deg / sqrt(3600.0))
+
+
 
 #滤波器初始covariance
 init_pos_std: !!opencv-matrix

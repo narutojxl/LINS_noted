@@ -1,10 +1,11 @@
 cmake_minimum_required(VERSION 2.8.3)
 project(lins)
 
- set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11 -O3")
 
 # set(CMAKE_BUILD_TYPE "Debug")
-# set(CMAKE_CXX_FLAGS_DEBUG "-std=c++11 -g -O0")
+# set(CMAKE_CXX_FLAGS_DEBUG "-std=c++11 -g -O0") 
+
 
 
 
@@ -24,7 +25,14 @@ find_package(catkin REQUIRED COMPONENTS
 )
 
 find_package(GTSAM REQUIRED QUIET)
+
 find_package(PCL REQUIRED QUIET)
+
+# set(PCL_DIR "/home/jxl/third_softwares/pcl-1.9.1/INSTALL/share/pcl-1.9/") #use locall installed pcl
+# find_package(PCL 1.9 REQUIRED)
+# message(STATUS "***** PCL version: ${PCL_VERSION} *****")
+
+
 find_package(OpenCV REQUIRED QUIET)
 find_package(Eigen3 REQUIRED)
 

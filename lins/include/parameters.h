@@ -57,6 +57,10 @@ typedef Eigen::VectorXd VXD;
 typedef Eigen::MatrixXd MXD;
 typedef Eigen::Quaterniond Q4D;
 
+
+
+#include <pcl/search/impl/search.hpp> //we add for compile error for [对‘pcl::search::Search<pcl::PointXYZI>::getName[abi:cxx11]() const’未定义的引用]
+
 namespace parameter {
 
 /*!@EARTH COEFFICIENTS */

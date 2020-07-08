@@ -22,7 +22,7 @@
         <param name="config_file" type="string" value="$(arg config_path)" />
     </node>
     
-    <node pkg="lins" type="lins_fusion_node"    name="lins_fusion_node"    output="screen" >  <!--launch-prefix="valgrind" -->  <!-- launch-prefix="xterm -e gdb __args"-->
+    <node pkg="lins" type="lins_fusion_node"    name="lins_fusion_node"    output="screen">  <!--launch-prefix="valgrind" -->  <!-- launch-prefix="xterm -e gdb __args"-->
         <param name="config_file" type="string" value="$(arg config_path)" />
     </node>
     

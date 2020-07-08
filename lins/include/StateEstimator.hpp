@@ -309,7 +309,7 @@ public:
         status_ = STATUS_INIT;
       break;
     case STATUS_RUNNING: //第3帧,4帧,5帧...
-      if (!processScan()) status_ = STATUS_RUNNING; //此语句多余
+      if (!processScan()) status_ = STATUS_RUNNING; 
       break;
     }
     double time_opt = ts_opt.toc();
@@ -452,8 +452,8 @@ public:
   void correctOrientation(const Q4D &quad) { globalState_.qbn_ = quad; }
 
   bool processScan() {
-    if (scan_new_->cornerPointsLessSharp_->points.size() <= 5 || //TODO 10? 与first, second scan 保持一致？ default: 5
-        scan_new_->surfPointsLessFlat_->points.size() <= 10) { //100? default: 10
+    if (scan_new_->cornerPointsLessSharp_->points.size() <= 10 || //TODO 10? 与first, second scan 保持一致？ default: 5
+        scan_new_->surfPointsLessFlat_->points.size() <= 100) { //100? default: 10
       ROS_WARN("Insufficient features...State estimation fails.");
       return false;
     }
@@ -511,20 +511,26 @@ public:
       // Find corresponding features
       findCorrespondingSurfFeatures(scan_last_, scan_new_, keypointSurfs_,
                                     jacobianCoffSurfs, iter);
-      if (keypointSurfs_->points.size() < 10) {
+      if (keypointSurfs_->points.size() < 10) { //TODO default: 10
         if (VERBOSE) {
-          ROS_WARN("Insufficient matched surfs...");
+          ROS_INFO("Insufficient matched surfs...");
         }
-        continue; //TODO jxl: 程序有时会随机挂掉，原因是合格的面点数量为0，jacobianCoffSurfs为空
       }
       findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
                                       jacobianCoffCorns, iter);
-      if (keypointCorns_->points.size() < 5) {
+      if (keypointCorns_->points.size() < 5) { //TODO default: 5
         if (VERBOSE) {
-          ROS_WARN("Insufficient matched corners...");
+          ROS_INFO("Insufficient matched corners...");
         }
-        continue; //TODO jxl：原因同上
       }
+      
+      auto surf_num = keypointSurfs_->points.size();
+      auto corner_num = keypointCorns_->points.size();
+      ROS_INFO("surf and corner = (%d, %d)", surf_num,  corner_num);
+
+      //TODO jxl: 程序有时会随机挂掉，原因是合格的面点数量为0，jacobianCoffSurfs为空
+      if (surf_num < 10 || corner_num < 5)
+        continue;
 
       // Sum up jocobians and residuals
       keypoints_->clear();
@@ -618,7 +624,7 @@ public:
     // If diverges, swtich to traditional ICP method to get a rough relative
     // transformation. Otherwise, update the error-state covariance matrix
     if (hasDiverged == true) {
-      ROS_WARN("======Using ICP Method======");
+      ROS_INFO("======Using ICP Method======");
       V3D t = filterState.rn_;
       Q4D q = filterState.qbn_;
       estimateTransform(scan_last_, scan_new_, t, q);
@@ -902,10 +908,10 @@ public:
           float pointSqDis, minPointSqDis2 = NEAREST_FEATURE_SEARCH_SQ_DIST,
                             minPointSqDis3 = NEAREST_FEATURE_SEARCH_SQ_DIST;
 
-          for (int j = closestPointInd + 1; j < surfPointsFlatNum; j++) { // TODO应该为surfPointsLessFlatNum, default: surfPointsFlatNum
+          for (int j = closestPointInd + 1; j < surfPointsLessFlatNum; j++) { // TODO应该为surfPointsLessFlatNum, default: surfPointsFlatNum
             if (int(laserCloudSurfLast->points[j].intensity) >
                 closestPointScan + 2.5) {
-              break; // TODO 应该为continue吗？
+              continue; // TODO 应该为continue吗？ default: break
             }
 
             pointSqDis = (laserCloudSurfLast->points[j].x - pointSel.x) *
@@ -931,7 +937,7 @@ public:
           for (int j = closestPointInd - 1; j >= 0; j--) {
             if (int(laserCloudSurfLast->points[j].intensity) <
                 closestPointScan - 2.5) {
-              break; // TODO 应该为continue吗？
+              continue; // TODO 应该为continue吗？default: break
             }
 
             pointSqDis = (laserCloudSurfLast->points[j].x - pointSel.x) *
@@ -1027,10 +1033,10 @@ public:
               int(laserCloudCornerLast->points[closestPointInd].intensity);
 
           float pointSqDis, minPointSqDis2 = NEAREST_FEATURE_SEARCH_SQ_DIST;
-          for ( int j = closestPointInd + 1; j < cornerPointsSharpNum; j++) { // TODO:应该为cornerPointsLessSharpNum, default：cornerPointsSharpNum
+          for ( int j = closestPointInd + 1; j < cornerPointsLessSharpNum; j++) { // TODO:应该为cornerPointsLessSharpNum, default：cornerPointsSharpNum
             if (int(laserCloudCornerLast->points[j].intensity) >
                 closestPointScan + 2.5) {
-              break; // TODO 应该为continue吗？
+                  continue; // TODO 应该为continue吗？ default: break
             }
 
             pointSqDis = (laserCloudCornerLast->points[j].x - pointSel.x) *
@@ -1051,7 +1057,7 @@ public:
           for (int j = closestPointInd - 1; j >= 0; j--) {
             if (int(laserCloudCornerLast->points[j].intensity) <
                 closestPointScan - 2.5) {
-              break; // TODO 应该为continue吗？
+              continue; // TODO 应该为continue吗？ default: break
             }
 
             pointSqDis = (laserCloudCornerLast->points[j].x - pointSel.x) *
@@ -1204,8 +1210,8 @@ public:
     globalStateYZX_.qbn_ =
         Q_xyz_to_yzx * globalState_.qbn_ * Q_xyz_to_yzx.inverse(); //YZX_t时刻在YZX_0坐标系下的旋转
 
-    if (scan_new_->cornerPointsLessSharp_->points.size() >= 5 && //TODO 10? 与first, second scan 保持一致？
-        scan_new_->surfPointsLessFlat_->points.size() >= 20) { //100
+    if (scan_new_->cornerPointsLessSharp_->points.size() >= 10 && //TODO与first, second scan 保持一致？ default: 5
+        scan_new_->surfPointsLessFlat_->points.size() >= 100) { //default: 20
       kdtreeCorner_->setInputCloud(scan_new_->cornerPointsLessSharp_);
       kdtreeSurf_->setInputCloud(scan_new_->surfPointsLessFlat_);
     }
@@ -1223,13 +1229,13 @@ public:
 
       findCorrespondingSurfFeatures(lastScan, newScan, keypointSurfs_,
                                     jacobianCoffSurfs, iter);
-      if (keypointSurfs_->points.size() < 10) {
+      if (keypointSurfs_->points.size() < 10) { //TODO default: 10
         ROS_WARN("Insufficient matched surfs...");
         continue;
       }
       findCorrespondingCornerFeatures(lastScan, newScan, keypointCorns_,
                                       jacobianCoffCorns, iter);
-      if (keypointCorns_->points.size() < 5) {
+      if (keypointCorns_->points.size() < 5) {  //TODO default: 5
         ROS_WARN("Insufficient matched corners...");
         continue;
       }
@@ -1298,7 +1304,7 @@ public:
       V3D jacobian1xyz =
           coff_xyz.transpose() *
           (-R21xyz.toRotationMatrix() * skew(P2xyz)); // rotation jacobian
-      //TODO 点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 * p0对R的雅克比
+      //点到直线的距离或点到平面的距离对R的雅克比 = 距离对p0的雅克比 * p0对R的雅克比
       //其中p0对R的雅克比： 整个程序的R是Hamilton惯例，按照其右扰动对应局部扰动,
       //按照右扰动公式
       // = -Rp^
