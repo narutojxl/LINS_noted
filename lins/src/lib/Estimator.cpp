@@ -72,9 +72,9 @@ void LinsFusion::initialization() {
 
   // Allocate measurement buffers for sensors
   imuBuf_.allocate(500);
-  pclBuf_.allocate(30); //TODO 这三个变量的默认大小为3
-  outlierBuf_.allocate(30);
-  cloudInfoBuf_.allocate(30);
+  pclBuf_.allocate(3); //TODO 这三个变量的默认大小为3
+  outlierBuf_.allocate(3);
+  cloudInfoBuf_.allocate(3);
 
   // Initialize IMU propagation parameters
   isImuCalibrated = CALIBARTE_IMU;
@@ -94,16 +94,20 @@ void LinsFusion::initialization() {
 void LinsFusion::laserCloudCallback(
     const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg) {
   // Add a new segmented point cloud
+  std::unique_lock<std::mutex> lock_pcl(pcl_mutex_);
   pclBuf_.addMeas(laserCloudMsg, laserCloudMsg->header.stamp.toSec());
 }
+
 void LinsFusion::laserCloudInfoCallback(
     const cloud_msgs::cloud_infoConstPtr& cloudInfoMsg) {
   // Add segmentation information of the point cloud
+  std::unique_lock<std::mutex> lock_pcl(pcl_mutex_);
   cloudInfoBuf_.addMeas(*cloudInfoMsg, cloudInfoMsg->header.stamp.toSec());
 }
 
 void LinsFusion::outlierCloudCallback(
     const sensor_msgs::PointCloud2ConstPtr& laserCloudMsg) {
+  std::unique_lock<std::mutex> lock_pcl(pcl_mutex_);
   outlierBuf_.addMeas(laserCloudMsg, laserCloudMsg->header.stamp.toSec());
 }
 
@@ -136,6 +140,8 @@ void LinsFusion::imuCallback(const sensor_msgs::Imu::ConstPtr& imuMsg) {
                     gyr_aligned_);
 
   // Add a new IMU measurement
+  std::unique_lock<std::mutex> lock_imu(imu_mutex_);  //we add 
+  std::unique_lock<std::mutex> lock_pcl(pcl_mutex_);
   Imu imu(imuMsg->header.stamp.toSec(), acc_aligned_, gyr_aligned_);
   imuBuf_.addMeas(imu, imuMsg->header.stamp.toSec()); //imubuffer中保存的是每个imu时刻laser的加速度和角速度
 
@@ -208,28 +214,55 @@ void LinsFusion::publishTopics() {
 
 
 bool LinsFusion::processPointClouds() {
+  
+  // std::printf("\n\n");
+  // ROS_INFO("prepare for data");
+  
   // Obtain the next PCL
   pclBuf_.itMeas_ = pclBuf_.measMap_.upper_bound(estimator->getTime());//第一个时间戳大于滤波器的点云
+  if(pclBuf_.itMeas_ == pclBuf_.measMap_.end()){ //see my issue: https://github.com/ChaoqinRobotics/LINS---LiDAR-inertial-SLAM/issues/16
+    ROS_WARN("not exist pcl\n");
+    pclBuf_.clean(estimator->getTime());
+    return false;
+  }
   sensor_msgs::PointCloud2::ConstPtr pclMsg = pclBuf_.itMeas_->second;
   scan_time_ = pclBuf_.itMeas_->first;
   distortedPointCloud->clear();
   pcl::fromROSMsg(*pclMsg, *distortedPointCloud);
+  // ROS_INFO("obstain PCL");
+  
 
   outlierBuf_.itMeas_ = outlierBuf_.measMap_.upper_bound(estimator->getTime());
+  if(outlierBuf_.itMeas_ == outlierBuf_.measMap_.end()){
+    ROS_WARN("not exist outlier\n");
+    outlierBuf_.clean(estimator->getTime());
+    return false;
+  }
   sensor_msgs::PointCloud2::ConstPtr outlierMsg = outlierBuf_.itMeas_->second;
   outlierPointCloud->clear();
   pcl::fromROSMsg(*outlierMsg, *outlierPointCloud);
+  // ROS_INFO("obstain outlier");
+
 
   cloudInfoBuf_.itMeas_ =
       cloudInfoBuf_.measMap_.upper_bound(estimator->getTime());
+  if(cloudInfoBuf_.itMeas_ == cloudInfoBuf_.measMap_.end()){
+    ROS_WARN("not exist cloudInfo\n");
+    cloudInfoBuf_.clean(estimator->getTime());
+    return false;
+  }
   cloud_msgs::cloud_info cloudInfoMsg = cloudInfoBuf_.itMeas_->second;
+  // ROS_INFO("obstain cloudInfo");
 
   imuBuf_.getLastTime(last_imu_time_);//得到imu buffer中最新的时间戳
   if (last_imu_time_ < scan_time_) {
-    // ROS_WARN("Wait for more IMU measurement!");
+    ROS_INFO("Wait for more IMU measurement!");
     return false;
   }
-   
+
+  
+  //ROS_INFO("process imu data");
+
   // 如果执行到这，时间戳顺序如下：
   // filter_time  scan_time_       
   //      |          |          |                          
@@ -259,6 +292,8 @@ bool LinsFusion::processPointClouds() {
   //       某一个imu                 imuBuf_中最后一个
 
   //对相邻两laser帧之间的imu measurements预积分得到k帧laser到k+1帧laser变换的初值，后面在处理该帧laser时会用
+  
+  //ROS_INFO("process imu done");
 
   Imu imu;
   imuBuf_.getLastMeas(imu); //TODO: 感觉不应该取最后一个imu，应该取时间戳和scan_time最近的imu

@@ -48,6 +48,7 @@
 #include <thread>
 
 #include "cloud_msgs/cloud_info.h"
+#include <pcl/search/impl/search.hpp> //we add for compile error for [对‘pcl::search::Search<pcl::PointXYZI>::getName[abi:cxx11]() const’未定义的引用]
 
 typedef pcl::PointXYZI PointType;
 
@@ -59,7 +60,7 @@ typedef Eigen::Quaterniond Q4D;
 
 
 
-#include <pcl/search/impl/search.hpp> //we add for compile error for [对‘pcl::search::Search<pcl::PointXYZI>::getName[abi:cxx11]() const’未定义的引用]
+
 
 namespace parameter {
 

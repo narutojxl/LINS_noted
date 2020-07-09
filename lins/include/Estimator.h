@@ -46,6 +46,7 @@
 #include <sensor_utils.hpp>
 
 #include "cloud_msgs/cloud_info.h"
+#include <mutex>
 
 using namespace std;
 using namespace Eigen;
@@ -139,6 +140,9 @@ class LinsFusion {
   MapRingBuffer<sensor_msgs::PointCloud2::ConstPtr> outlierBuf_; //大小：3，保存"/outlier_cloud"
   MapRingBuffer<cloud_msgs::cloud_info> cloudInfoBuf_;//大小：3，保存"/segmented_cloud_info"
   MapRingBuffer<Gps> gpsBuf_;
+
+  //we add 
+  std::mutex imu_mutex_, pcl_mutex_;
 
   // !@Time
   int scan_counter_;

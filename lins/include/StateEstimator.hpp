@@ -452,8 +452,8 @@ public:
   void correctOrientation(const Q4D &quad) { globalState_.qbn_ = quad; }
 
   bool processScan() {
-    if (scan_new_->cornerPointsLessSharp_->points.size() <= 10 || //TODO 10? 与first, second scan 保持一致？ default: 5
-        scan_new_->surfPointsLessFlat_->points.size() <= 100) { //100? default: 10
+    if (scan_new_->cornerPointsLessSharp_->points.size() <= 5 || //TODO 10? 与first, second scan 保持一致？ default: 5
+        scan_new_->surfPointsLessFlat_->points.size() <= 10) { //100? default: 10
       ROS_WARN("Insufficient features...State estimation fails.");
       return false;
     }
@@ -487,7 +487,8 @@ public:
     // Slide the new scan to last scan
     scan_last_.swap(scan_new_);
     scan_new_.reset(new Scan());
-
+    
+    //ROS_INFO("process laser done");
     return true;
   }
 
@@ -513,14 +514,14 @@ public:
                                     jacobianCoffSurfs, iter);
       if (keypointSurfs_->points.size() < 10) { //TODO default: 10
         if (VERBOSE) {
-          ROS_INFO("Insufficient matched surfs...");
+          ROS_WARN("Insufficient matched surfs...");
         }
       }
       findCorrespondingCornerFeatures(scan_last_, scan_new_, keypointCorns_,
                                       jacobianCoffCorns, iter);
       if (keypointCorns_->points.size() < 5) { //TODO default: 5
         if (VERBOSE) {
-          ROS_INFO("Insufficient matched corners...");
+          ROS_WARN("Insufficient matched corners...");
         }
       }
       
@@ -624,7 +625,7 @@ public:
     // If diverges, swtich to traditional ICP method to get a rough relative
     // transformation. Otherwise, update the error-state covariance matrix
     if (hasDiverged == true) {
-      ROS_INFO("======Using ICP Method======");
+      ROS_WARN("======Using ICP Method======");
       V3D t = filterState.rn_;
       Q4D q = filterState.qbn_;
       estimateTransform(scan_last_, scan_new_, t, q);
@@ -1210,8 +1211,8 @@ public:
     globalStateYZX_.qbn_ =
         Q_xyz_to_yzx * globalState_.qbn_ * Q_xyz_to_yzx.inverse(); //YZX_t时刻在YZX_0坐标系下的旋转
 
-    if (scan_new_->cornerPointsLessSharp_->points.size() >= 10 && //TODO与first, second scan 保持一致？ default: 5
-        scan_new_->surfPointsLessFlat_->points.size() >= 100) { //default: 20
+    if (scan_new_->cornerPointsLessSharp_->points.size() >= 5 && //TODO与first, second scan 保持一致？ default: 5
+        scan_new_->surfPointsLessFlat_->points.size() >= 20) { //default: 20
       kdtreeCorner_->setInputCloud(scan_new_->cornerPointsLessSharp_);
       kdtreeSurf_->setInputCloud(scan_new_->surfPointsLessFlat_);
     }

@@ -27,10 +27,10 @@ lidar_mapping_topic: "/integrated_to_init"
 
 #https://github.com/ChaoqinRobotics/LINS---LiDAR-inertial-SLAM/issues/11
 # noice parameters  在KalmanFilter.hpp::initializeCovariance()
-# acc_n: 70000  #加速度计噪声(单位 m/(s^2))，              配置文件中单位： ug(1e-6*g)
-# gyr_n: 0.1    #陀螺仪噪声(单位rad/s)，                  配置文件中单位： °/hr (M_PI/180.0/3600.0)
-# acc_w: 500    #加速度计bias噪声(单位 m s^-1.5)          配置文件中单位：  ug/sqrt(Hz)
-# gyr_w: 0.05   #陀螺仪bias噪声(单位 rad s^-0.5)          配置文件中单位：  deg/sqrt(hr)
+# acc_n: 70000  #加速度计噪声(单位 m/(s^2))，                  配置文件中单位： ug(1e-6*g)
+# gyr_n: 0.1    #陀螺仪噪声(单位rad/s)，                      配置文件中单位： °/hr (M_PI/180.0/3600.0)
+# acc_w: 500    #加速度计bias导数噪声(单位 m s^-1.5)           配置文件中单位：  ug/sqrt(Hz)
+# gyr_w: 0.05   #陀螺仪bias导数噪声(单位 rad s^-0.5)          配置文件中单位：  deg/sqrt(hr)
 
 #对于adi16480来说，如何设置？
 acc_n: 700000  

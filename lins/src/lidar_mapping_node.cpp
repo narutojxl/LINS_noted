@@ -1058,7 +1058,7 @@ class MappingHandler {
     globalMapKeyPoses->clear();
     globalMapKeyPosesDS->clear();
     globalMapKeyFrames->clear();
-    // globalMapKeyFramesDS->clear(); //原始的lego_loam中该语句是屏蔽的
+    globalMapKeyFramesDS->clear(); //原始的lego_loam中该语句是屏蔽的
   }
 
   void loopClosureThread() {
