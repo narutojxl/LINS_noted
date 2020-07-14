@@ -136,7 +136,7 @@ class StatePredictor {
 
     // Average acceleration and angular rate
     GlobalState state_tmp = state_; //本次用来预测状态的第一帧imu，因为上一次update之后调用了reset，所以此时的state是上次reset()之后的状态；用本次第一帧之后的imu再预测时，状态的初值就是上次预测的结果
-    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_; //0指的是：第k帧laser下加速度，见lins 10式，11式中的R^bk_t
+    V3D un_acc_0 = state_tmp.qbn_ * (acc_last - state_tmp.ba_) + state_tmp.gn_; //0指的是：第k帧laser下加速度，见预积分paper 32式
     V3D un_gyr = 0.5 * (gyr_last + gyr) - state_tmp.bw_;
     Q4D dq = axis2Quat(un_gyr * dt);
     state_tmp.qbn_ = (state_tmp.qbn_ * dq).normalized(); //R^bk_t: 从bk到当前t时刻的旋转
